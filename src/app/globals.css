@@ -1,0 +1,183 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Dizayn tokenlari — yagona manba. Boshqa hech qayerda hex yozilmasin,
+   hammasi shu o'zgaruvchilardan foydalansin (rang o'zgartirish uchun
+   FAQAT shu joyni tahrirlash kifoya).
+
+   MUHIM: asosiy ranglar "R G B" (bo'sh joy bilan ajratilgan kanal) formatida
+   saqlanadi, tailwind.config.ts'da esa rgb(var(--x) / <alpha-value>) bilan
+   o'raladi — shu orqali bg-primary/10, text-foreground/70 kabi opacity
+   modifikatorlari to'g'ri ishlaydi (CSS var ustida oddiy "/NN" ishlamaydi).
+   ========================================================================== */
+:root {
+  color-scheme: dark;
+
+  --background: 10 10 10;
+  --foreground: 245 245 240;
+
+  --card: 16 17 16;
+  --card-foreground: 245 245 240;
+  --card-elevated: 21 22 22;
+
+  --primary: 47 128 237;
+  --primary-foreground: 255 255 255;
+  --primary-hover: #256dd1;
+
+  --secondary: 217 164 65;
+  --secondary-foreground: 20 20 15;
+
+  --accent: 47 128 237;
+  --accent-foreground: 255 255 255;
+
+  --muted: 23 24 24;
+  --muted-foreground: 138 141 145;
+
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.13);
+
+  --destructive: 220 63 63;
+  --destructive-soft: rgba(220, 63, 63, 0.15);
+  --success: 22 163 74;
+  --success-soft: rgba(22, 163, 74, 0.15);
+  --warning: 245 158 11;
+  --warning-soft: rgba(245, 158, 11, 0.15);
+
+  --dark: 10 10 10;
+
+  --radius: 1.25rem;
+}
+
+/* Mijoz Mini App va admin panel — BIR XIL dizayn tizimi (dark + blue-accent).
+   Avval ikkalasi mustaqil edi, endi bitta manba: shu :root o'zgaruvchilari
+   butun ilova bo'ylab ishlatiladi. `.theme-admin` klassi admin/layout.tsx'da
+   qoldirilgan (zararsiz), lekin endi qiymatlarni qayta belgilamaydi. */
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* ---------- Floating glass — pastki navigatsiya va boshqa suzib
+   turuvchi panellar uchun ---------- */
+.glass-float {
+  background: rgb(var(--card) / 0.78);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--border);
+}
+
+/* ---------- Bottom Sheet / header panellar — Sheet.tsx va admin
+   header/nav shu ikkalasidan foydalanadi, joriy scope (mijoz/admin)
+   rangiga avtomatik moslashadi. ---------- */
+.glass {
+  background: rgb(var(--card) / 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+}
+.glass-strong {
+  background: rgb(var(--card) / 0.97);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--border);
+}
+
+/* ---------- Scrollbars ---------- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.25);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+/* timer raqamlari bir xil kenglikda turishi uchun */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   Animatsiyalar — bitta joyda. Yangisini o'ylab topmang, shulardan foydalaning.
+   ========================================================================== */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease both;
+}
+.animate-slide-up {
+  animation: slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-scale-in {
+  animation: scale-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.skeleton {
+  background: linear-gradient(90deg, rgb(var(--muted)) 25%, rgb(var(--card-elevated)) 37%, rgb(var(--muted)) 63%);
+  background-size: 800px 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
