@@ -605,7 +605,12 @@ function OrderPicker({
   onBack: () => void;
 }) {
   const store = useAdminStore();
-  const [catId, setCatId] = useState(store.categories[0]?.id ?? "");
+  // Yashirilgan (enabled=false) kategoriyalar Mini POS tezkor tanlovida
+  // ko'rsatilmaydi (2026-09, "kategoriya yashirish") — o'zi/mahsulotlari
+  // hech qayerda o'chirilmaydi, Sozlamalar → Mahsulotlar'da qayta yoqilishi
+  // mumkin.
+  const visibleCategories = store.categories.filter((c) => c.enabled !== false);
+  const [catId, setCatId] = useState(visibleCategories[0]?.id ?? "");
   const session = store.sessions.find((s) => s.id === sessionId);
 
   // "Tezkor/maxsus mahsulot" (2026-08) — Products katalogida yo'q narsani
@@ -747,7 +752,7 @@ function OrderPicker({
       </button>
 
       <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-        {store.categories.map((c) => (
+        {visibleCategories.map((c) => (
           <button
             key={c.id}
             onClick={() => setCatId(c.id)}

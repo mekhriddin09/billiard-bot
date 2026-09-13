@@ -263,7 +263,10 @@ function SessionEditForm({
   );
   const [orders, setOrders] = useState<OrderItem[]>(initial.orders);
   const [showAdd, setShowAdd] = useState(false);
-  const [catId, setCatId] = useState(store.categories[0]?.id ?? "");
+  // Yashirilgan kategoriyalar bu yerda ham ko'rsatilmaydi (2026-09,
+  // "kategoriya yashirish" — TableDetailSheet'dagi OrderPicker bilan bir xil).
+  const visibleCategories = store.categories.filter((c) => c.enabled !== false);
+  const [catId, setCatId] = useState(visibleCategories[0]?.id ?? "");
   const [reason, setReason] = useState("");
 
   const bump = (productId: string, delta: number) => {
@@ -395,7 +398,7 @@ function SessionEditForm({
       {showAdd && (
         <div className="mt-2">
           <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
-            {store.categories.map((c) => (
+            {visibleCategories.map((c) => (
               <button
                 key={c.id}
                 onClick={() => setCatId(c.id)}

@@ -411,7 +411,29 @@ function ProductsTab() {
         const archived = store.products.filter((p) => p.categoryId === c.id && !p.active);
         return (
           <div key={c.id} className="mb-5">
-            <CardHeader title={`${c.emoji} ${c.name}`} count={items.length} />
+            <CardHeader
+              title={`${c.emoji} ${c.name}`}
+              count={items.length}
+              action={
+                <button
+                  onClick={() => store.updateCategory(c.id, { enabled: c.enabled === false })}
+                  title={
+                    c.enabled === false
+                      ? "Bu kategoriya Mini POS'da yashirilgan — bosib qayta ko'rsating"
+                      : "Bu kategoriyani Mini POS'dagi tezkor tanlovdan vaqtincha yashirish (mahsulotlari o'chmaydi)"
+                  }
+                >
+                  <Badge tone={c.enabled === false ? "muted" : "green"}>
+                    {c.enabled === false ? "👁️‍🗨️ Yashirilgan" : "👁️ Ko'rinadi"}
+                  </Badge>
+                </button>
+              }
+            />
+            {c.enabled === false && (
+              <p className="-mt-2 mb-2 text-[11px] text-surfaceMuted-foreground">
+                Bu kategoriya hozir Mini POS&#39;dagi mahsulot qo&#39;shish panelida ko&#39;rinmaydi.
+              </p>
+            )}
             <Card padding="none" className="overflow-hidden p-0">
               {items.length === 0 ? (
                 <div className="p-4">

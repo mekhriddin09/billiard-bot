@@ -22,6 +22,12 @@ export interface ProductCategory {
   id: string;
   name: string;
   emoji: string;
+  // Mini POS'dagi mahsulot qo'shish panelida ko'rinish-ko'rinmasligi
+  // (2026-09, "kategoriya yashirish"). false bo'lsa — kategoriya va uning
+  // mahsulotlari HECH QAYERDA o'chirilmaydi, faqat tezkor tanlov
+  // ro'yxatidan (OrderPicker tab'lari) chiqib turadi; Sozlamalar →
+  // Mahsulotlar'da har doim ko'rinadi (qayta yoqish uchun).
+  enabled: boolean;
 }
 
 export interface Product {

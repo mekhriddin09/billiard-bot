@@ -47,7 +47,7 @@ export function mapTable(r: any): ClubTable {
 }
 
 export function mapCategory(r: any): ProductCategory {
-  return { id: r.id, name: r.name, emoji: r.emoji };
+  return { id: r.id, name: r.name, emoji: r.emoji, enabled: r.enabled ?? true };
 }
 
 export function mapProduct(r: any): Product {

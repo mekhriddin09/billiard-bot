@@ -92,6 +92,7 @@ interface AdminActions {
   addProduct: (p: Omit<Product, "id">) => Promise<void>;
   updateProduct: (id: string, patch: Partial<Product>) => Promise<void>;
   addCategory: (name: string, emoji: string) => Promise<void>;
+  updateCategory: (id: string, patch: Partial<ProductCategory>) => Promise<void>;
   addStaff: (name: string, tgId: string, tgUsername: string, role: StaffRole) => Promise<void>;
   updateStaff: (id: string, patch: Partial<StaffMember>) => Promise<void>;
   removeStaff: (id: string) => Promise<void>;
@@ -488,6 +489,15 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
             body: JSON.stringify({ name, emoji }),
           });
           mutate((s) => ({ ...s, categories: [...s.categories, category] }));
+        }),
+
+      updateCategory: (id, patch) =>
+        withError(async () => {
+          const { category } = await api<{ category: ProductCategory }>(`/api/categories/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify(patch),
+          });
+          mutate((s) => ({ ...s, categories: s.categories.map((c) => (c.id === id ? category : c)) }));
         }),
 
       addStaff: (name, tgId, tgUsername, role) =>

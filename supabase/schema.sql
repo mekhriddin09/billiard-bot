@@ -58,7 +58,11 @@ create table product_categories (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   emoji text not null default '🛒',
-  sort_order int not null default 0
+  sort_order int not null default 0,
+  -- Mini POS'dagi kategoriya tab'laridan yashirish uchun (0013-migratsiya,
+  -- 2026-09) — kategoriya/mahsulotlari o'chirilmaydi, faqat tezkor
+  -- tanlovda ko'rinmay turadi (Sozlamalar'da har doim ko'rinadi).
+  enabled boolean not null default true
 );
 
 create table products (
