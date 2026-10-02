@@ -293,13 +293,21 @@ export default function TableDetailSheet({
                           <span className="text-sm font-semibold text-foreground">{fmtMoney(o.price * o.qty)} so&#39;m</span>
                           <div className="flex items-center gap-1">
                             <button
-                              onClick={() => store.addOrder(session.id, o.productId, -1)}
+                              onClick={() =>
+                                o.productId
+                                  ? store.addOrder(session.id, o.productId, -1)
+                                  : store.adjustCustomOrder(session.id, o.id, -1)
+                              }
                               className="h-6 w-6 rounded-md bg-cardElevated text-xs text-foreground/70"
                             >
                               −
                             </button>
                             <button
-                              onClick={() => store.addOrder(session.id, o.productId, 1)}
+                              onClick={() =>
+                                o.productId
+                                  ? store.addOrder(session.id, o.productId, 1)
+                                  : store.adjustCustomOrder(session.id, o.id, 1)
+                              }
                               className="h-6 w-6 rounded-md bg-primary text-xs text-foreground"
                             >
                               +

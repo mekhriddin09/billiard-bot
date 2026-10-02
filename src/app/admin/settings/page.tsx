@@ -401,6 +401,7 @@ function ProductsTab() {
   const [newCat, setNewCat] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [confirmDeleteCategory, setConfirmDeleteCategory] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState<Record<string, boolean>>({});
   const isSuper = store.currentStaff.role === "super_admin";
 
@@ -415,18 +416,54 @@ function ProductsTab() {
               title={`${c.emoji} ${c.name}`}
               count={items.length}
               action={
-                <button
-                  onClick={() => store.updateCategory(c.id, { enabled: c.enabled === false })}
-                  title={
-                    c.enabled === false
-                      ? "Bu kategoriya Mini POS'da yashirilgan — bosib qayta ko'rsating"
-                      : "Bu kategoriyani Mini POS'dagi tezkor tanlovdan vaqtincha yashirish (mahsulotlari o'chmaydi)"
-                  }
-                >
-                  <Badge tone={c.enabled === false ? "muted" : "green"}>
-                    {c.enabled === false ? "👁️‍🗨️ Yashirilgan" : "👁️ Ko'rinadi"}
-                  </Badge>
-                </button>
+                <span className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => store.updateCategory(c.id, { enabled: c.enabled === false })}
+                    title={
+                      c.enabled === false
+                        ? "Bu kategoriya Mini POS'da yashirilgan — bosib qayta ko'rsating"
+                        : "Bu kategoriyani Mini POS'dagi tezkor tanlovdan vaqtincha yashirish (mahsulotlari o'chmaydi)"
+                    }
+                  >
+                    <Badge tone={c.enabled === false ? "muted" : "green"}>
+                      {c.enabled === false ? "👁️‍🗨️ Yashirilgan" : "👁️ Ko'rinadi"}
+                    </Badge>
+                  </button>
+                  {isSuper &&
+                    (confirmDeleteCategory === c.id ? (
+                      <>
+                        <button
+                          onClick={() => {
+                            store.deleteCategory(c.id);
+                            setConfirmDeleteCategory(null);
+                          }}
+                          className="h-7 rounded-md bg-destructive px-2 text-[11px] font-bold text-dark"
+                        >
+                          Tasdiqlash
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteCategory(null)}
+                          className="flex h-7 w-7 items-center justify-center rounded-md bg-cardElevated text-xs text-foreground/70"
+                          aria-label="Bekor"
+                        >
+                          ✕
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDeleteCategory(c.id)}
+                        className="flex h-7 w-7 items-center justify-center rounded-md bg-cardElevated text-xs text-destructive/80 hover:text-destructive"
+                        title={
+                          items.length + archived.length > 0
+                            ? "Bu kategoriyada mahsulot bor — o'chirish rad etiladi, buning o'rniga yashiring"
+                            : "Kategoriyani butunlay o'chirish"
+                        }
+                        aria-label="Kategoriyani o'chirish"
+                      >
+                        🗑
+                      </button>
+                    ))}
+                </span>
               }
             />
             {c.enabled === false && (

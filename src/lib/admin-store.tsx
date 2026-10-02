@@ -77,6 +77,10 @@ interface AdminActions {
   /** "Tezkor/maxsus mahsulot" — Products katalogida yo'q, faqat shu
    *  sessiyaga xos qator (2026-08). */
   addCustomOrder: (sessionId: string, name: string, price: number, qty: number) => Promise<void>;
+  /** Tezkor mahsulot qatorining miqdorini +/- qilish — productId emas,
+   *  qatorning o'z `orderId`si bilan (bir nechta tezkor qator bo'lsa ham
+   *  bir-biridan ajraladi, 2026-09). */
+  adjustCustomOrder: (sessionId: string, orderId: string, delta: number) => Promise<void>;
   adjustTime: (sessionId: string, minutes: number) => Promise<void>;
   closeSession: (
     sessionId: string,
@@ -93,6 +97,7 @@ interface AdminActions {
   updateProduct: (id: string, patch: Partial<Product>) => Promise<void>;
   addCategory: (name: string, emoji: string) => Promise<void>;
   updateCategory: (id: string, patch: Partial<ProductCategory>) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
   addStaff: (name: string, tgId: string, tgUsername: string, role: StaffRole) => Promise<void>;
   updateStaff: (id: string, patch: Partial<StaffMember>) => Promise<void>;
   removeStaff: (id: string) => Promise<void>;
@@ -347,6 +352,52 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
           await thisCall;
         }),
 
+      adjustCustomOrder: (sessionId, orderId, delta) =>
+        withError(async () => {
+          // Tezkor mahsulot qatorlari productId="" bilan bir xil ko'rinadi
+          // (bir nechtasi bo'lsa ham) — shuning uchun addOrder'dagi kabi
+          // productId emas, shu qatorning o'z `id`si bilan boshqariladi
+          // (2026-09, qarang: adjustCustomOrderQtyCore izohi,
+          // src/lib/services/sessions.ts). Optimistik UI/navbat uslubi
+          // addOrder bilan bir xil.
+          mutate((s) => {
+            const session = s.sessions.find((x) => x.id === sessionId);
+            if (!session) return s;
+            const existing = session.orders.find((o) => o.id === orderId);
+            if (!existing) return s;
+            const newQty = existing.qty + delta;
+            const newOrders =
+              newQty <= 0
+                ? session.orders.filter((o) => o.id !== orderId)
+                : session.orders.map((o) => (o.id === orderId ? { ...o, qty: newQty } : o));
+            return { ...s, sessions: s.sessions.map((x) => (x.id === sessionId ? { ...x, orders: newOrders } : x)) };
+          });
+
+          const mySeq = (orderSeq.current.get(sessionId) ?? 0) + 1;
+          orderSeq.current.set(sessionId, mySeq);
+
+          const prevInChain = orderChains.current.get(sessionId) ?? Promise.resolve();
+          const thisCall = prevInChain.catch(() => {}).then(async () => {
+            try {
+              const { orders } = await api<{ orders: OrderItem[] }>(`/api/sessions/${sessionId}/custom-order`, {
+                method: "PATCH",
+                body: JSON.stringify({ orderId, delta }),
+              });
+              if (orderSeq.current.get(sessionId) === mySeq) {
+                mutate((s) => ({
+                  ...s,
+                  sessions: s.sessions.map((x) => (x.id === sessionId ? { ...x, orders } : x)),
+                }));
+              }
+            } catch (e) {
+              await load();
+              throw e;
+            }
+          });
+          orderChains.current.set(sessionId, thisCall);
+          await thisCall;
+        }),
+
       adjustTime: (sessionId, minutes) =>
         withError(async () => {
           const { adjustMinutes } = await api<{ adjustMinutes: number }>(
@@ -498,6 +549,14 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
             body: JSON.stringify(patch),
           });
           mutate((s) => ({ ...s, categories: s.categories.map((c) => (c.id === id ? category : c)) }));
+        }),
+
+      deleteCategory: (id) =>
+        withError(async () => {
+          // Server mahsuloti bor kategoriyani rad etadi (aniq xato matni
+          // bilan) — shu error global error banner'da ko'rsatiladi.
+          await api(`/api/categories/${id}`, { method: "DELETE" });
+          mutate((s) => ({ ...s, categories: s.categories.filter((c) => c.id !== id) }));
         }),
 
       addStaff: (name, tgId, tgUsername, role) =>

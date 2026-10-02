@@ -337,6 +337,78 @@ export async function addCustomOrderCore(
   return { orders: (orders ?? []).map(mapOrder) };
 }
 
+// ─── 2b) Tezkor mahsulot miqdorini o'zgartirish/o'chirish ────────────────
+export interface AdjustCustomOrderArgs {
+  sessionId: string;
+  orderId: string;
+  delta: number;
+}
+
+/**
+ * Tezkor/maxsus mahsulot qatorlari (session_orders.product_id = null)
+ * `addOrderCore` bilan BOSHQARILA OLMAYDI — u productId'ga tayanadi, lekin
+ * barcha tezkor qatorlar client tomonda productId="" (bir xil) sifatida
+ * ko'rinadi, demak productId ularni bir-biridan AJRATA OLMAYDI (2026-09,
+ * foydalanuvchi xabari: stolga tezkor mahsulot qo'shib, +/- bosganda
+ * sessiya g'alati holatga tushib qolishi). Shuning uchun bu qator o'zining
+ * HAQIQIY `session_orders.id`si bo'yicha, addOrderCore bilan bir xil
+ * CAS-retry uslubida boshqariladi.
+ */
+export async function adjustCustomOrderQtyCore(
+  supabase: SupabaseClient,
+  auth: AuthedStaff,
+  args: AdjustCustomOrderArgs
+): Promise<{ orders: OrderItem[] }> {
+  if (!args.orderId || typeof args.delta !== "number") {
+    throw new ServiceError("orderId/delta kerak", 400);
+  }
+
+  const { data: session } = await supabase
+    .from("game_sessions")
+    .select("id, status")
+    .eq("id", args.sessionId)
+    .maybeSingle();
+  if (!session) throw new ServiceError("Sessiya topilmadi", 404);
+  if (session.status !== "active") throw new ServiceError("Sessiya yopiq — /correct-orders ishlating", 409);
+
+  let done = false;
+  for (let attempt = 0; attempt < 8 && !done; attempt++) {
+    const { data: current } = await supabase
+      .from("session_orders")
+      .select("id, qty, session_id")
+      .eq("id", args.orderId)
+      .maybeSingle();
+    if (!current || current.session_id !== args.sessionId) {
+      throw new ServiceError("Qator topilmadi", 404);
+    }
+
+    const newQty = current.qty + args.delta;
+    if (newQty <= 0) {
+      const { data: deleted } = await supabase
+        .from("session_orders")
+        .delete()
+        .eq("id", current.id)
+        .eq("qty", current.qty)
+        .select("id")
+        .maybeSingle();
+      done = !!deleted;
+    } else {
+      const { data: updated } = await supabase
+        .from("session_orders")
+        .update({ qty: newQty })
+        .eq("id", current.id)
+        .eq("qty", current.qty)
+        .select("id")
+        .maybeSingle();
+      done = !!updated;
+    }
+  }
+  if (!done) throw new ServiceError("Band — qayta urinib ko'ring", 409);
+
+  const { data: orders } = await supabase.from("session_orders").select("*").eq("session_id", args.sessionId);
+  return { orders: (orders ?? []).map(mapOrder) };
+}
+
 // ─── 3) Vaqtni tuzatish ─────────────────────────────────────────────────
 export interface AdjustTimeArgs {
   sessionId: string;
