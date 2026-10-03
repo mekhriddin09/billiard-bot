@@ -328,6 +328,26 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
             }
           });
           orderChains.current.set(sessionId, thisCall);
+          // MUHIM (2026-10, "mahsulotlar yo'qolib qolyapti" — xato
+          // takrorlanishi): `thisCall` tugagach (muvaffaqiyatli yoki
+          // xato bo'lsa ham) shu sessiyani navbatdan OLIB TASHLAYMIZ —
+          // aks holda `orderChains.current` HECH QACHON tozalanmas edi
+          // (Map'da abadiy qolib ketardi), va `load()`dagi "pending
+          // sessiyalar"ni aniqlovchi tekshiruv (pastga qarang) bu
+          // sessiyani — hatto allaqachon TUGAGAN bo'lsa ham — doim
+          // "hali navbatda" deb hisoblab, uning `orders`ini serverdan
+          // kelgan HAQIQIY (yangi) holat bilan HECH QACHON yangilamas
+          // edi — ya'ni boshqa xodim/qurilmada qilingan o'zgarishlar
+          // (yoki shu sessiyaning o'zi boshqa sababdan qayta
+          // yuklanganda) ko'rinmay qolar, "eski" holat abadiy
+          // "muzlab" qolardi.
+          thisCall
+            .finally(() => {
+              if (orderChains.current.get(sessionId) === thisCall) {
+                orderChains.current.delete(sessionId);
+              }
+            })
+            .catch(() => {});
           await thisCall;
         }),
 
@@ -371,6 +391,13 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
             }
           });
           orderChains.current.set(sessionId, thisCall);
+          thisCall
+            .finally(() => {
+              if (orderChains.current.get(sessionId) === thisCall) {
+                orderChains.current.delete(sessionId);
+              }
+            })
+            .catch(() => {});
           await thisCall;
         }),
 
@@ -417,6 +444,13 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
             }
           });
           orderChains.current.set(sessionId, thisCall);
+          thisCall
+            .finally(() => {
+              if (orderChains.current.get(sessionId) === thisCall) {
+                orderChains.current.delete(sessionId);
+              }
+            })
+            .catch(() => {});
           await thisCall;
         }),
 
