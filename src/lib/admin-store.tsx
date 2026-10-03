@@ -130,9 +130,30 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
   const [state, setState] = useState<AdminState | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // 2026-10 (bosim ostida tekshiruv — foydalanuvchi real vaqtda skrinshot
+  // bilan isbotladi: mahsulotlar ro'yxati 13-20 soniya ichida yo'qolib-
+  // paydo bo'lib turardi, HECH QANDAY yangi deploy yoki xato bo'lmagan
+  // holatda ham). SABAB: davriy (20s) + fokus/visibility asosidagi
+  // qayta yuklash endi BIR NECHTA `load()` chaqiruvini deyarli bir
+  // vaqtda ishga tushirishi mumkin (masalan interval va "focus" hodisasi
+  // bir-biriga yaqin vaqtda). Tarmoq kechikishi o'zgaruvchan bo'lgani
+  // uchun bu so'rovlarning JAVOBLARI ketma-ketlikni BUZGAN holda
+  // qaytishi mumkin edi — KEYINROQ yuborilgan (yangiroq) so'rovning
+  // javobi OLDINROQ kelib `setState`ni to'g'ri qilib qo'yadi, keyin
+  // OLDINROQ yuborilgan (lekin sekinroq kelgan, ESKIROQ) so'rovning
+  // javobi orqasidan kelib uni ustidan YOZIB YUBORADI — xuddi addOrder
+  // uchun avval topilgan "stale response overwrite" bug bilan bir xil
+  // sinf (qarang: orderSeq izohi), lekin bu safar BUTUN holat uchun.
+  // Tuzatish bir xil: har bir `load()` chaqiruvi o'z tartib raqamini
+  // oladi, javob kelganda FAQAT hali ham ENG OXIRGI chaqiruv bo'lsagina
+  // qo'llaniladi.
+  const loadSeq = useRef(0);
+
   const load = useCallback(async () => {
+    const mySeq = ++loadSeq.current;
     try {
       const data = await api<Omit<AdminState, "ready">>("/api/state");
+      if (loadSeq.current !== mySeq) return; // eskirgan javob — e'tiborsiz
       setState((prev) => {
         // Agar biror sessiyaning navbatida hali TUGAMAGAN +/- yoki tezkor
         // mahsulot so'rovi bo'lsa (orderChains) — o'sha sessiyaning
@@ -158,6 +179,7 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
       });
       setError(null);
     } catch (e) {
+      if (loadSeq.current !== mySeq) return; // eskirgan javob — e'tiborsiz
       setError(e instanceof Error ? e.message : "Yuklashda xatolik");
     }
   }, []);
@@ -177,9 +199,22 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
   // tugamagan buyurtma so'rovlari bor sessiyalarni ustidan yozib
   // yubormaydi (yuqoridagi pendingSessionIds izohiga qarang), shuning
   // uchun bu davriy refresh faol tahrirlashga xalal bermaydi — xavfsiz.
+  // Mobil brauzer/Telegram WebView'da "visibilitychange"/"focus"
+  // hodisalari ekran qulflanishi, ilovalar orasida almashish kabi
+  // sabablar bilan QISQA VAQT ICHIDA BIR NECHA MARTA (hatto interval
+  // bilan deyarli bir vaqtda) otilishi mumkin — har safar alohida,
+  // keraksiz /api/state so'rovi yuborilmasligi uchun (yuqoridagi
+  // `loadSeq` ketma-ketlikni to'g'rilaydi, lekin server/tarmoqqa
+  // ortiqcha yuk tushirmaslik ham muhim) — oxirgi chaqiruvdan 3
+  // soniyadan kamroq vaqt o'tgan bo'lsa, qayta chaqirilmaydi.
+  const lastLoadAt = useRef(0);
   useEffect(() => {
     const maybeReload = () => {
-      if (document.visibilityState === "visible") load();
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastLoadAt.current < 3000) return;
+      lastLoadAt.current = now;
+      load();
     };
     const interval = setInterval(maybeReload, 20000);
     document.addEventListener("visibilitychange", maybeReload);
