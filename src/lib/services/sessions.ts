@@ -422,18 +422,40 @@ export async function adjustTimeCore(
 ): Promise<{ adjustMinutes: number }> {
   if (typeof args.minutes !== "number") throw new ServiceError("minutes kerak", 400);
 
-  const { data: session } = await supabase
-    .from("game_sessions")
-    .select("id, table_id, adjust_minutes, status")
-    .eq("id", args.sessionId)
-    .maybeSingle();
-  if (!session) throw new ServiceError("Sessiya topilmadi", 404);
+  // CAS/retry — addOrderCore bilan bir xil uslub (2026-10, bosim ostida
+  // tekshiruv): avval "o'qi eski qiymatni → ustiga qo'sh → yoz" edi, GUARD
+  // YO'Q holda. Ikki so'rov (bitta admin tez-tez bosganda yoki ikki admin
+  // bir vaqtda) deyarli bir vaqtda o'qisa, ikkalasi ham BIR XIL eski
+  // qiymatga tayanib yozadi — birining hissasi butunlay yo'qoladi ("lost
+  // update", xuddi avval addOrder'da topilgan bug bilan bir xil sinfdagi
+  // xato). Tuzatish: yozish faqat o'zi o'qigan eski qiymat hali ham amal
+  // qilsa muvaffaqiyatli bo'ladi, aks holda qayta o'qib qayta urinadi.
+  let tableId = "";
+  let newAdjust = 0;
+  let done = false;
+  for (let attempt = 0; attempt < 8 && !done; attempt++) {
+    const { data: session } = await supabase
+      .from("game_sessions")
+      .select("id, table_id, adjust_minutes, status")
+      .eq("id", args.sessionId)
+      .maybeSingle();
+    if (!session) throw new ServiceError("Sessiya topilmadi", 404);
+    tableId = session.table_id;
+    newAdjust = session.adjust_minutes + args.minutes;
 
-  const newAdjust = session.adjust_minutes + args.minutes;
-  const { error } = await supabase.from("game_sessions").update({ adjust_minutes: newAdjust }).eq("id", args.sessionId);
-  if (error) throw new ServiceError(error.message, 500);
+    const { data: updated, error } = await supabase
+      .from("game_sessions")
+      .update({ adjust_minutes: newAdjust })
+      .eq("id", args.sessionId)
+      .eq("adjust_minutes", session.adjust_minutes)
+      .select("id")
+      .maybeSingle();
+    if (error) throw new ServiceError(error.message, 500);
+    done = !!updated;
+  }
+  if (!done) throw new ServiceError("Vaqtni tuzatishda ziddiyat — qayta urinib ko'ring", 409);
 
-  const { data: table } = await supabase.from("club_tables").select("name").eq("id", session.table_id).maybeSingle();
+  const { data: table } = await supabase.from("club_tables").select("name").eq("id", tableId).maybeSingle();
   if (table) {
     await logAudit(
       supabase,

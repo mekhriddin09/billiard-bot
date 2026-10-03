@@ -33,6 +33,7 @@ export default function TableDetailSheet({
   const [debtDueDate, setDebtDueDate] = useState("");
   const [timeOpen, setTimeOpen] = useState(false);
   const [adjustInput, setAdjustInput] = useState("");
+  const [adjustPending, setAdjustPending] = useState(false);
 
   useEffect(() => {
     setView("main");
@@ -48,6 +49,7 @@ export default function TableDetailSheet({
     setDebtDueDate("");
     setTimeOpen(false);
     setAdjustInput("");
+    setAdjustPending(false);
   }, [tableId]);
 
   const table = store.tables.find((t) => t.id === tableId);
@@ -376,12 +378,24 @@ export default function TableDetailSheet({
                           />
                           <Btn
                             variant="primary"
-                            disabled={!Number(adjustInput)}
-                            onClick={() => {
+                            disabled={!Number(adjustInput) || adjustPending}
+                            onClick={async () => {
                               const m = Math.round(Number(adjustInput));
                               if (!m) return;
-                              store.adjustTime(session.id, m);
-                              setAdjustInput("");
+                              // 2026-10 (bosim ostida tekshiruv): server endi
+                              // CAS bilan himoyalangan bo'lsa ham, tugmani
+                              // so'rov tugaguncha o'chirib qo'yamiz — tez
+                              // ketma-ket ikki marta bosilsa, ikkinchi bosish
+                              // birinchisi hali tugamay ketib qolmasligi
+                              // uchun (masalan +15ni ikki marta bosib +30
+                              // emas, +15 qo'yib qo'yishni xohlagan holat).
+                              setAdjustPending(true);
+                              try {
+                                await store.adjustTime(session.id, m);
+                                setAdjustInput("");
+                              } finally {
+                                setAdjustPending(false);
+                              }
                             }}
                           >
                             Qo&#39;llash
