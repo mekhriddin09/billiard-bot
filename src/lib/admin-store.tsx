@@ -166,6 +166,31 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
     load();
   }, [load]);
 
+  // Jonli sinxronizatsiya (2026-10, "bitta admin stol ochadi, lekin asosiy
+  // admin kirsa kamroq stol ko'rinadi" xatosi): sahifa faqat ochilganda
+  // BIR MARTA /api/state'dan ma'lumot oladi. Agar boshqa xodim shu payt
+  // yangi stol qo'shsa/stolni yoqsa, allaqachon ochiq turgan boshqa
+  // brauzer buni sahifa qayta yuklanmaguncha UMUMAN ko'rmaydi — bu stol
+  // ro'yxati "qisqa" ko'rinishining asosiy sababi. Tuzatish: davriy
+  // (har 20 soniyada, faqat tab ko'rinib turganda) va tab qayta faol/
+  // fokusga qaytganda avtomatik qayta yuklash. `load()`ning o'zi hali
+  // tugamagan buyurtma so'rovlari bor sessiyalarni ustidan yozib
+  // yubormaydi (yuqoridagi pendingSessionIds izohiga qarang), shuning
+  // uchun bu davriy refresh faol tahrirlashga xalal bermaydi — xavfsiz.
+  useEffect(() => {
+    const maybeReload = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    const interval = setInterval(maybeReload, 20000);
+    document.addEventListener("visibilitychange", maybeReload);
+    window.addEventListener("focus", maybeReload);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", maybeReload);
+      window.removeEventListener("focus", maybeReload);
+    };
+  }, [load]);
+
   // Xatolik bo'lsa qisqa vaqt ko'rsatib, o'zi yo'qoladi.
   useEffect(() => {
     if (!error) return;
