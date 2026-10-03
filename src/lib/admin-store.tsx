@@ -133,7 +133,29 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
   const load = useCallback(async () => {
     try {
       const data = await api<Omit<AdminState, "ready">>("/api/state");
-      setState({ ...data, ready: true });
+      setState((prev) => {
+        // Agar biror sessiyaning navbatida hali TUGAMAGAN +/- yoki tezkor
+        // mahsulot so'rovi bo'lsa (orderChains) — o'sha sessiyaning
+        // `orders`ini shu (eski, hali o'zgarishni ko'rmagan) snapshot
+        // bilan YOZIB YUBORMAYMIZ. Aks holda: admin ketma-ket ikkita
+        // mahsulot qo'shsa (masalan "Fuse Tea 1L" keyin "Fuse Tea 1,5L"),
+        // birinchisining so'rovi biror sababdan xato qaytarib (`catch` →
+        // shu `load()`) chaqirilganda, IKKINCHI mahsulot hali serverga
+        // yetib bormagan optimistik qo'shimcha sifatida turgan bo'ladi —
+        // shu snapshot bilan TO'LIQ almashtirilsa, IKKINCHISI HAM
+        // vaqtincha "yo'qolib qoladi" (2026-10, foydalanuvchi xabari: "1L
+        // qo'shildi, yo'qoldi, 1,5L qo'shgandan keyin ikkisi ham paydo
+        // bo'ldi"). Pending sessiyalarning orders'i o'z navbatidagi
+        // so'rov natijasi kelganda TO'G'RI holatga avtomatik keladi —
+        // bu yerda tegilmaydi.
+        const pendingSessionIds = new Set(orderChains.current.keys());
+        const sessions = data.sessions.map((s) => {
+          if (!pendingSessionIds.has(s.id)) return s;
+          const prevSession = prev?.sessions.find((x) => x.id === s.id);
+          return prevSession ? { ...s, orders: prevSession.orders } : s;
+        });
+        return { ...data, sessions, ready: true };
+      });
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Yuklashda xatolik");
