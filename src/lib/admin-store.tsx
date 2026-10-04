@@ -175,6 +175,15 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
           const prevSession = prev?.sessions.find((x) => x.id === s.id);
           return prevSession ? { ...s, orders: prevSession.orders } : s;
         });
+        // Hali POST /api/sessions javobi kutilayotgan ("stol ochish"
+        // jarayonidagi) stollar uchun — agar server javobida bu stol
+        // uchun hali active sessiya bo'lmasa (POST hali commit bo'lmagan),
+        // local optimistik stub'ni saqlab qolamiz (pendingNewSessions
+        // izohiga qarang).
+        for (const [tableId, stub] of Array.from(pendingNewSessions.current.entries())) {
+          const hasServerSession = sessions.some((s) => s.tableId === tableId && s.status === "active");
+          if (!hasServerSession) sessions.push(stub);
+        }
         return { ...data, sessions, ready: true };
       });
       setError(null);
@@ -279,6 +288,26 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
   const orderChains = useRef<Map<string, Promise<void>>>(new Map());
   const orderSeq = useRef<Map<string, number>>(new Map());
 
+  // Stol ochish race (2026-10, foydalanuvchi xabari: "stol ochsa, qarab
+  // tursa 1 soniyadan keyin yopilib qolayapti, lekin kirib-chiqsa
+  // ochiq ko'rinadi"). SABAB: `startSession` optimistik "stub" sessiyani
+  // DARHOL local state'ga qo'shadi, lekin POST /api/sessions javobi
+  // kelgunicha bu stub HECH QAYERDA (orderChains kabi) "pending" deb
+  // belgilanmagan edi. Agar aynan shu ~1 soniyalik oyna ichida davriy/
+  // fokus asosidagi `load()` otilib ketsa (yuqoridagi loadSeq izohiga
+  // qarang), server javobi hali bu yangi sessiyani O'Z ICHIGA OLMAYDI —
+  // chunki POST hali commit bo'lmagan. `load()` esa `state.sessions`ni
+  // TO'LIQ server javobi bilan almashtiradi — stub shu yerda yo'qolib
+  // qoladi (stol "yopiq/bo'sh" bo'lib ko'rinadi). Keyin POST javobi
+  // kelganda, `sessions.map` ichida eski `tempId` endi topilmaydi —
+  // real sessiya HECH QAYERGA qo'yilmay, jimgina tashlab yuboriladi.
+  // Tuzatish: `startSession` boshlanganda stolni shu Map'ga belgilaydi,
+  // `load()` esa agar server javobida shu stol uchun hali active
+  // sessiya bo'lmasa, local stub'ni saqlab qoladi (POST tugagach o'zi
+  // avtomatik to'g'ri holatga almashtiradi yoki xato bo'lsa olib
+  // tashlanadi — bu yerda tegilmaydi).
+  const pendingNewSessions = useRef<Map<string, GameSession>>(new Map());
+
   const actions = useMemo<AdminActions>(
     () => ({
       refresh: load,
@@ -304,6 +333,7 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
             status: "active",
             paid: false,
           };
+          pendingNewSessions.current.set(tableId, stub);
           mutate((s) => ({ ...s, sessions: [...s.sessions, stub] }));
 
           try {
@@ -311,8 +341,10 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
               method: "POST",
               body: JSON.stringify({ tableId, phone }),
             });
+            pendingNewSessions.current.delete(tableId);
             mutate((s) => ({ ...s, sessions: s.sessions.map((x) => (x.id === tempId ? session : x)) }));
           } catch (e) {
+            pendingNewSessions.current.delete(tableId);
             mutate((s) => ({ ...s, sessions: s.sessions.filter((x) => x.id !== tempId) }));
             await load();
             throw e;
