@@ -175,14 +175,40 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
           const prevSession = prev?.sessions.find((x) => x.id === s.id);
           return prevSession ? { ...s, orders: prevSession.orders } : s;
         });
-        // Hali POST /api/sessions javobi kutilayotgan ("stol ochish"
-        // jarayonidagi) stollar uchun — agar server javobida bu stol
-        // uchun hali active sessiya bo'lmasa (POST hali commit bo'lmagan),
-        // local optimistik stub'ni saqlab qolamiz (pendingNewSessions
-        // izohiga qarang).
-        for (const [tableId, stub] of Array.from(pendingNewSessions.current.entries())) {
+        // Hali POST /api/sessions javobi kutilayotgan YOKI yaqinda
+        // muvaffaqiyatli tugagan ("stol ochish" jarayonidagi) stollar
+        // uchun — pendingNewSessions'ga qarang. MUHIM (2026-10, jonli
+        // sinovda topildi): POST muvaffaqiyatli bo'lgandan KEYIN ham
+        // himoyani darhol OLIB TASHLAMAYMIZ — chunki POST'dan OLDINROQ
+        // boshlangan, lekin SEKINROQ (masalan tarmoq kechikishi bilan)
+        // qaytgan bitta eski `load()` chaqiruvi hali navbatda bo'lishi
+        // mumkin. Uning GET javobi POST hali commit bo'lmagan paytdagi
+        // SNAPSHOT'ni aks ettiradi — ya'ni bu yangi sessiyani O'Z ICHIGA
+        // OLMAYDI. `loadSeq` buni ushlamaydi, chunki bu load() chaqiruvi
+        // ORQASIDAN hech qanday YANGIROQ load() chiqmagan (demak hali ham
+        // "eng oxirgi" hisoblanadi) — muammo load() chaqiruvlari
+        // o'rtasidagi tartib emas, balki bitta load() bilan startSession
+        // ichidagi to'g'ridan-to'g'ri `mutate()` o'rtasidagi tartib.
+        // Natija: bu eski-lekin-"eng oxirgi" load() TO'G'RI (yangi
+        // sessiyali) holatni eskirgan holat bilan yozib yuboradi — xuddi
+        // foydalanuvchi ta'riflagan "1 soniyadan keyin yopilib qolish"
+        // bugi. Tuzatish: POST muvaffaqiyatli bo'lgach, stub o'rniga
+        // REAL sessiyani pendingNewSessions'da SAQLAB QOLAMIZ. Keyingi
+        // HAR qanday `load()` — eski bo'lsin, yangi bo'lsin — agar bu
+        // real sessiyani (ID bo'yicha) server javobida ko'rmasa, uni
+        // qayta qo'shib qo'yadi. Faqat biror `load()` chaqiruvi bu
+        // sessiyani (xoh active, xoh allaqachon yopilgan holatda) HAQIQIY
+        // ko'rsa — demak server state'i chindan ham yangilangan — shu
+        // paytda himoya olib tashlanadi (keyingi real o'zgarishlarga,
+        // masalan stolni yopishga, to'sqinlik qilmasin uchun).
+        for (const [tableId, pending] of Array.from(pendingNewSessions.current.entries())) {
+          const confirmed = data.sessions.find((s) => s.id === pending.id);
+          if (confirmed) {
+            pendingNewSessions.current.delete(tableId);
+            continue;
+          }
           const hasServerSession = sessions.some((s) => s.tableId === tableId && s.status === "active");
-          if (!hasServerSession) sessions.push(stub);
+          if (!hasServerSession) sessions.push(pending);
         }
         return { ...data, sessions, ready: true };
       });
@@ -301,11 +327,15 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
   // qoladi (stol "yopiq/bo'sh" bo'lib ko'rinadi). Keyin POST javobi
   // kelganda, `sessions.map` ichida eski `tempId` endi topilmaydi —
   // real sessiya HECH QAYERGA qo'yilmay, jimgina tashlab yuboriladi.
-  // Tuzatish: `startSession` boshlanganda stolni shu Map'ga belgilaydi,
-  // `load()` esa agar server javobida shu stol uchun hali active
-  // sessiya bo'lmasa, local stub'ni saqlab qoladi (POST tugagach o'zi
-  // avtomatik to'g'ri holatga almashtiradi yoki xato bo'lsa olib
-  // tashlanadi — bu yerda tegilmaydi).
+  // Tuzatish: `startSession` boshlanganda stolni shu Map'ga belgilaydi.
+  // POST MUVAFFAQIYATLI bo'lgandan KEYIN HAM bu yozuv darhol
+  // o'chirilmaydi (bu — ikkinchi, chuqurroq bosqich, 2026-10 jonli
+  // qayta sinovda topildi: birinchi variant — faqat POST tugagunicha
+  // himoya qilish — YETARLI EMAS edi, chunki POST'dan OLDIN boshlangan,
+  // lekin undan KEYIN qaytgan bitta eski `load()` baribir eskirgan
+  // holatni yozib yuborishi mumkin edi): endi stub o'rniga REAL
+  // sessiya saqlanadi, `load()` esa uni faqat shu sessiyani (ID
+  // bo'yicha) serverdan HAQIQATDA ko'rgandagina o'chiradi.
   const pendingNewSessions = useRef<Map<string, GameSession>>(new Map());
 
   const actions = useMemo<AdminActions>(
@@ -341,7 +371,10 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
               method: "POST",
               body: JSON.stringify({ tableId, phone }),
             });
-            pendingNewSessions.current.delete(tableId);
+            // E'TIBOR: bu yerda `delete` QILINMAYDI — stub o'rniga REAL
+            // sessiya saqlanadi, himoya `load()` o'zi uni (ID bo'yicha)
+            // tasdiqlagach olib tashlaydi (yuqoridagi izohga qarang).
+            pendingNewSessions.current.set(tableId, session);
             mutate((s) => ({ ...s, sessions: s.sessions.map((x) => (x.id === tempId ? session : x)) }));
           } catch (e) {
             pendingNewSessions.current.delete(tableId);
