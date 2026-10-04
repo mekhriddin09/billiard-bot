@@ -34,6 +34,9 @@ export default function TableDetailSheet({
   const [timeOpen, setTimeOpen] = useState(false);
   const [adjustInput, setAdjustInput] = useState("");
   const [adjustPending, setAdjustPending] = useState(false);
+  const [reminderOpen, setReminderOpen] = useState(false);
+  const [reminderInput, setReminderInput] = useState("");
+  const [reminderPending, setReminderPending] = useState(false);
 
   useEffect(() => {
     setView("main");
@@ -50,6 +53,9 @@ export default function TableDetailSheet({
     setTimeOpen(false);
     setAdjustInput("");
     setAdjustPending(false);
+    setReminderOpen(false);
+    setReminderInput("");
+    setReminderPending(false);
   }, [tableId]);
 
   const table = store.tables.find((t) => t.id === tableId);
@@ -401,6 +407,114 @@ export default function TableDetailSheet({
                             Qo&#39;llash
                           </Btn>
                         </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* BILDIRISHNOMA — 2026-10, admin qo'lda vaqt belgilaydi,
+                    shuncha vaqtdan keyin Telegram'ga eslatma keladi (stolni
+                    yopmaydi, faqat eslatadi). */}
+                <button
+                  onClick={() => setReminderOpen((v) => !v)}
+                  className="mt-2.5 flex w-full items-center justify-between rounded-card border border-edge bg-card px-3.5 py-3 text-left"
+                >
+                  <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-surfaceMuted-foreground">
+                    🔔 Bildirishnoma
+                    {session.reminderAt && !session.reminderSentAt && (
+                      <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] normal-case tracking-normal text-primary">
+                        {fmtHM(session.reminderAt)} da
+                      </span>
+                    )}
+                  </span>
+                  <motion.span
+                    animate={{ rotate: reminderOpen ? 180 : 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="text-surfaceMuted-foreground"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                      <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </motion.span>
+                </button>
+                <AnimatePresence initial={false}>
+                  {reminderOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.18 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-2 rounded-card border border-edge bg-card p-3.5">
+                        {session.reminderAt && !session.reminderSentAt ? (
+                          <>
+                            <div className="mb-2.5 flex items-center justify-between text-xs">
+                              <span className="text-surfaceMuted-foreground">Eslatma vaqti</span>
+                              <span className="font-semibold text-foreground">
+                                {fmtHM(session.reminderAt)} ({fmtDurationMin(session.reminderMinutes ?? 0)} dan keyin o&#39;rnatilgan)
+                              </span>
+                            </div>
+                            <Btn
+                              variant="ghost"
+                              className="w-full"
+                              disabled={reminderPending}
+                              onClick={async () => {
+                                setReminderPending(true);
+                                try {
+                                  await store.setReminder(session.id, null);
+                                } finally {
+                                  setReminderPending(false);
+                                }
+                              }}
+                            >
+                              Bekor qilish
+                            </Btn>
+                          </>
+                        ) : (
+                          <>
+                            <div className="mb-1 text-xs text-surfaceMuted-foreground">
+                              Necha daqiqadan keyin eslatilsin? (masalan 30 yoki 60)
+                            </div>
+                            <div className="mb-2.5 flex gap-1.5">
+                              {[30, 60, 90].map((m) => (
+                                <button
+                                  key={m}
+                                  onClick={() => setReminderInput(String(m))}
+                                  className="rounded-md bg-cardElevated px-2.5 py-1 text-[11px] text-foreground/80"
+                                >
+                                  {fmtDurationMin(m)}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="flex gap-2">
+                              <Input
+                                value={reminderInput}
+                                onChange={setReminderInput}
+                                placeholder="masalan: 30"
+                                type="number"
+                                className="flex-1"
+                              />
+                              <Btn
+                                variant="primary"
+                                disabled={!Number(reminderInput) || Number(reminderInput) <= 0 || reminderPending}
+                                onClick={async () => {
+                                  const m = Math.round(Number(reminderInput));
+                                  if (!m || m <= 0) return;
+                                  setReminderPending(true);
+                                  try {
+                                    await store.setReminder(session.id, m);
+                                    setReminderInput("");
+                                  } finally {
+                                    setReminderPending(false);
+                                  }
+                                }}
+                              >
+                                O&#39;rnatish
+                              </Btn>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </motion.div>
                   )}

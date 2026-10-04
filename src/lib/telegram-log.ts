@@ -143,6 +143,26 @@ export async function logSessionStarted(
   }
 }
 
+// ─── BILDIRISHNOMA (admin qo'lda o'rnatgan eslatma) ────────────────────
+// 2026-10 — sessiya ochilgandan boshlab belgilangan daqiqa o'tgach bitta
+// marta yuboriladi (stolni yopmaydi). Sessiya ochilgan xabariga REPLY
+// qilib yuboriladi (replyToMessageId bo'lsa) — xuddi boshqa thread'langan
+// voqealar kabi.
+export async function logSessionReminder(
+  supabase: SupabaseClient,
+  params: {
+    tableName: string;
+    durationLabel: string;
+    replyToMessageId?: number;
+  }
+) {
+  const channel = await getLogChannel(supabase);
+  if (!channel) return;
+
+  const text = `⏰ ${params.tableName} uchun ${params.durationLabel} vaqti bo'ldi`;
+  await sendMessage(channel.channelId, text, { replyToMessageId: params.replyToMessageId });
+}
+
 // ─── MAHSULOT QO'SHILDI ─────────────────────────────────────────────────
 export async function logProductAdded(
   supabase: SupabaseClient,

@@ -203,6 +203,9 @@ export function mapSession(r: any, orders: OrderItem[] = [], editHistory: Sessio
     closedBy: r.closed_by_name ?? undefined,
     closedByRole: r.closed_by_role ?? undefined,
     editHistory,
+    reminderMinutes: r.reminder_minutes ?? undefined,
+    reminderAt: t(r.reminder_at),
+    reminderSentAt: t(r.reminder_sent_at),
   };
 }
 

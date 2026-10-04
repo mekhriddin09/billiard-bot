@@ -120,6 +120,14 @@ export interface GameSession {
   closedByRole?: StaffRole;
   /** Har bir tuzatish shu yerga qo'shiladi, hech qachon o'chirilmaydi */
   editHistory?: SessionEditLogEntry[];
+  /** "Bildirishnoma" — admin qo'lda o'rnatgan eslatma (2026-10). Stolni
+   *  avtomatik YOPMAYDI — faqat belgilangan vaqt o'tgach Telegram Audit
+   *  kanaliga bitta xabar yuboradi ("4-stol uchun 1 soat vaqti bo'ldi"). */
+  reminderMinutes?: number;
+  /** Eslatma qachon tetiklanishi kerak (epoch ms) — o'rnatilgan payt + reminderMinutes. */
+  reminderAt?: number;
+  /** Xabar yuborilgan payt — to'ldirilgan bo'lsa, qayta yuborilmaydi. */
+  reminderSentAt?: number;
 }
 
 /** Qarzning bir marotabalik to'lov yozuvi — hech qachon o'chirilmaydi. */

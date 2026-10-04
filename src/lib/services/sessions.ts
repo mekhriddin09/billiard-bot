@@ -467,6 +467,65 @@ export async function adjustTimeCore(
   return { adjustMinutes: newAdjust };
 }
 
+// ─── 3b) Sessiyaga "bildirishnoma" (eslatma) o'rnatish ──────────────────
+// 2026-10, foydalanuvchi so'rovi: admin stolni ochgach, qo'lda daqiqa
+// kiritib eslatma qo'yadi (masalan 30 yoki 60). Shuncha vaqt o'tgach
+// Telegram Audit kanaliga bitta xabar yuboriladi — stolni AVTOMATIK
+// YOPMAYDI, faqat eslatadi. Minutes=null berilsa — mavjud eslatma bekor
+// qilinadi (uchtala ustun ham tozalanadi).
+export interface SetSessionReminderArgs {
+  sessionId: string;
+  minutes: number | null;
+}
+
+export async function setSessionReminderCore(
+  supabase: SupabaseClient,
+  auth: AuthedStaff,
+  args: SetSessionReminderArgs
+): Promise<{ session: GameSession }> {
+  if (args.minutes !== null && (typeof args.minutes !== "number" || args.minutes <= 0)) {
+    throw new ServiceError("Daqiqa musbat son bo'lishi kerak", 400);
+  }
+  const { data: session } = await supabase
+    .from("game_sessions")
+    .select("*")
+    .eq("id", args.sessionId)
+    .maybeSingle();
+  if (!session) throw new ServiceError("Sessiya topilmadi", 404);
+  if (session.status !== "active") throw new ServiceError("Sessiya yopiq", 409);
+
+  const patch =
+    args.minutes === null
+      ? { reminder_minutes: null, reminder_at: null, reminder_sent_at: null }
+      : {
+          reminder_minutes: args.minutes,
+          reminder_at: new Date(Date.now() + args.minutes * 60000).toISOString(),
+          reminder_sent_at: null,
+        };
+
+  const { data: updated, error } = await supabase
+    .from("game_sessions")
+    .update(patch)
+    .eq("id", args.sessionId)
+    .select("*")
+    .maybeSingle();
+  if (error || !updated) throw new ServiceError(error?.message ?? "Xatolik", 500);
+
+  const { data: table } = await supabase.from("club_tables").select("name").eq("id", updated.table_id).maybeSingle();
+  if (table) {
+    await logAudit(
+      supabase,
+      auth,
+      args.minutes === null
+        ? `${table.name} stol bildirishnomasi bekor qilindi`
+        : `${table.name} stolga bildirishnoma o'rnatildi: ${args.minutes} daqiqa`
+    );
+  }
+
+  const { data: ordersRows } = await supabase.from("session_orders").select("*").eq("session_id", args.sessionId);
+  return { session: mapSession(updated, (ordersRows ?? []).map(mapOrder), []) };
+}
+
 // ─── 4) Sessiyani yopish ────────────────────────────────────────────────
 export interface CloseSessionArgs {
   sessionId: string;

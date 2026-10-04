@@ -16,6 +16,8 @@ import {
   mapStaff,
   mapTable,
 } from "@/lib/db-map";
+import { bestEffort, logSessionReminder } from "@/lib/telegram-log";
+import { fmtDurationMin } from "@/lib/format";
 
 /**
  * Ilova ochilganda BIR MARTA chaqiriladigan to'liq boshlang'ich holat.
@@ -169,6 +171,47 @@ export async function GET() {
     paymentsByDebt.set(row.debt_id, arr);
   }
   const debts = (debtsRows.data ?? []).map((d) => mapDebt(d, paymentsByDebt.get(d.id) ?? []));
+
+  // ─── Bildirishnoma ("reminder") tekshiruvi ─────────────────────────────
+  // 2026-10, foydalanuvchi so'rovi: admin stol ochgach qo'lda daqiqa
+  // kiritib eslatma qo'yadi — shuncha vaqt o'tgach Telegram Audit kanaliga
+  // bitta xabar yuboriladi (stolni AVTOMATIK yopmaydi). Vercel Hobby
+  // tarifidagi cron (`daily-tick`) kuniga FAQAT 1 marta ishlaydi — daqiqa
+  // aniqligidagi eslatma uchun yaramaydi. Shuning uchun bu tekshiruv
+  // ALOHIDA infratuzilma talab qilmaydi — admin Mini App ALLAQACHON
+  // yuborayotgan shu `/api/state` so'roviga "mingan" (admin-store.tsx
+  // har 20 soniyada + fokus/visibility'da qayta so'raydi). CHEKLOV:
+  // agar hech qaysi admin Mini App'ni ochib turmasa, eslatma keyingi
+  // marta kimdir ilovani ochgunicha kechikadi — bu klub uchun qabul
+  // qilinadigan trade-off (smena davomida ilova odatda ochiq turadi).
+  // CAS (`reminder_sent_at IS NULL` guard, `.is()`) bir nechta admin bir
+  // vaqtda so'rov yuborsa ham xabar IKKI MARTA YUBORILMASLIGINI
+  // kafolatlaydi — faqat "yutgan" so'rov `claimed` qaytaradi.
+  const nowIso = new Date().toISOString();
+  const dueReminders = (sessionsRows.data ?? []).filter(
+    (s) => s.status === "active" && s.reminder_at && s.reminder_at <= nowIso && !s.reminder_sent_at
+  );
+  if (dueReminders.length > 0) {
+    const tableNameById = new Map((tables.data ?? []).map((t) => [t.id, t.name as string]));
+    for (const s of dueReminders) {
+      const { data: claimed } = await supabase
+        .from("game_sessions")
+        .update({ reminder_sent_at: nowIso })
+        .eq("id", s.id)
+        .is("reminder_sent_at", null)
+        .select("id")
+        .maybeSingle();
+      if (!claimed) continue;
+      bestEffort(
+        logSessionReminder(supabase, {
+          tableName: tableNameById.get(s.table_id) ?? "Stol",
+          durationLabel: fmtDurationMin(s.reminder_minutes ?? 0),
+          replyToMessageId: s.telegram_log_message_id ?? undefined,
+        }),
+        "logSessionReminder"
+      );
+    }
+  }
 
   const staffList = (staff.data ?? []).map(mapStaff);
   const currentStaff =

@@ -204,7 +204,13 @@ create table game_sessions (
   closed_by uuid references staff(id),
   closed_by_name text,
   closed_by_role text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- "Bildirishnoma" (0014-migratsiya, 2026-10) — admin qo'lda o'rnatadigan
+  -- bir martalik eslatma (stolni avtomatik YOPMAYDI, faqat belgilangan
+  -- vaqt o'tgach Telegram Audit kanaliga eslatma yuboradi).
+  reminder_minutes int,
+  reminder_at timestamptz,
+  reminder_sent_at timestamptz
 );
 create index idx_sessions_business_date on game_sessions(business_date);
 create index idx_sessions_table on game_sessions(table_id);

@@ -82,6 +82,9 @@ interface AdminActions {
    *  bir-biridan ajraladi, 2026-09). */
   adjustCustomOrder: (sessionId: string, orderId: string, delta: number) => Promise<void>;
   adjustTime: (sessionId: string, minutes: number) => Promise<void>;
+  /** "Bildirishnoma" — belgilangan daqiqadan keyin Telegram'ga eslatma
+   *  yuboriladi (stolni yopmaydi). minutes=null — bekor qilish. */
+  setReminder: (sessionId: string, minutes: number | null) => Promise<void>;
   closeSession: (
     sessionId: string,
     method: PaymentMethod,
@@ -588,6 +591,22 @@ export function AdminStoreProvider({ children }: { children: React.ReactNode }) 
           mutate((s) => ({
             ...s,
             sessions: s.sessions.map((x) => (x.id === sessionId ? { ...x, adjustMinutes } : x)),
+          }));
+        }),
+
+      setReminder: (sessionId, minutes) =>
+        withError(async () => {
+          const { session } = await api<{ session: GameSession }>(
+            `/api/sessions/${sessionId}/reminder`,
+            { method: "PATCH", body: JSON.stringify({ minutes }) }
+          );
+          mutate((s) => ({
+            ...s,
+            sessions: s.sessions.map((x) =>
+              x.id === sessionId
+                ? { ...x, reminderMinutes: session.reminderMinutes, reminderAt: session.reminderAt, reminderSentAt: session.reminderSentAt }
+                : x
+            ),
           }));
         }),
 
